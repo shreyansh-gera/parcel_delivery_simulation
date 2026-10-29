@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parcel Delivery · Search Algorithm Visualizer</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Parcel Delivery · Search Algorithm Visualizer</h1>
+    <p class="sub">Pick a start (A) and a destination (B), then watch A* and AO* find a route on the same map. The table at the bottom compares the path, total cost, nodes explored and execution time. CSE3121 · Artificial Intelligence &amp; Soft Computing</p>
+  </div>
+  <button id="themeBtn" class="ghost" type="button" aria-label="Switch colour theme">Dark mode</button>
+</header>
+
+<section class="controls" aria-label="Scenario">
+  <div class="presets" id="presets" role="group" aria-label="Ready-made scenarios"></div>
+  <div class="fields">
+    <label>From (A)<select id="selA"></select></label>
+    <label>To (B)<select id="selB"></select></label>
+    <label class="wide">Heuristic (used by A* and AO*)<select id="selH"></select></label>
+    <label class="aoonly">AO*: waypoints per step (K)<span class="val" id="vK"></span><input id="rngK" type="range" min="1" max="7" step="1"></label>
+  </div>
+  <div class="toggles">
+    <label class="chk"><input type="checkbox" id="chkTimes"> Show road lengths (km) on the map</label>
+    <label class="chk aoonly"><input type="checkbox" id="chkPrune"> AO*: prune arcs that cannot beat the direct road</label>
+    <span class="note">Tip: you can also click two junctions on the map to set A, then B.</span>
+  </div>
+</section>
+
+<section class="algos" aria-label="Algorithm">
+  <span class="lbl">Watch:</span>
+  <div class="tabs" id="tabs" role="group" aria-label="Algorithm to visualize"></div>
+  <span class="note" id="algoBlurb"></span>
+</section>
+
+<section class="player" aria-label="Playback">
+  <div class="btns">
+    <button id="bFirst" type="button" title="Back to the start (Home)" aria-label="First step">⏮</button>
+    <button id="bPrev" type="button" title="Previous step (←)" aria-label="Previous step">◀</button>
+    <button id="bPlay" type="button" class="primary" title="Play or pause (Space)">Play</button>
+    <button id="bNext" type="button" title="Next step (→)" aria-label="Next step">▶</button>
+    <button id="bLast" type="button" title="Jump to the answer (End)" aria-label="Last step">⏭</button>
+  </div>
+  <input id="scrub" type="range" min="0" value="0" aria-label="Step">
+  <div class="where"><span id="phase" class="badge">Start</span><span id="stepNo" class="mono"></span></div>
+  <label class="spd">Speed <input id="rngSpd" type="range" min="1" max="10" value="5"></label>
+</section>
+
+<main class="grid">
+  <section class="card map" aria-label="City map">
+    <div class="cardhead"><h2>City map</h2><div class="legend" id="mapLegend"></div></div>
+    <div class="stage"><svg id="mapSvg" viewBox="0 0 1000 620" role="img" aria-label="Road network with the current search"></svg></div>
+    <p class="hint" id="mapHint"></p>
+  </section>
+
+  <section class="card narr" aria-live="polite" aria-label="What the algorithm is doing">
+    <div class="cardhead"><h2>What is happening</h2></div>
+    <div id="narr" class="narr-body"></div>
+  </section>
+
+  <section class="card side graph" id="graphCard" aria-label="AND-OR graph">
+    <div class="cardhead"><h2>AND-OR search graph (AO*)</h2>
+      <div class="tools">
+        <label class="chk"><input type="checkbox" id="chkFollow" checked> Follow the plan</label>
+        <button id="bFit" class="ghost small" type="button">Fit all</button>
+      </div></div>
+    <div class="stage"><svg id="graphSvg" role="img" aria-label="AND-OR graph built by AO*"><g id="vp"></g></svg></div>
+    <div class="legend" id="graphLegend"></div>
+  </section>
+
+  <section class="card side lists" id="listCard" aria-label="Frontier and explored nodes" hidden>
+    <div class="cardhead"><h2 id="listTitle">Frontier</h2><span class="note" id="listNote"></span></div>
+    <div class="lists-body">
+      <div class="col">
+        <h3 id="frontTitle">Frontier</h3>
+        <div class="tablewrap"><table id="frontTable" class="mini"></table></div>
+      </div>
+      <div class="col">
+        <h3 id="closedTitle">Explored, in order</h3>
+        <div id="closedList" class="chips"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card cmp" aria-label="Algorithm comparison">
+    <div class="cardhead"><h2>Comparison: same map, same A and B, A* vs AO*</h2>
+      <label class="chk"><input type="checkbox" id="chkOverlay"> Draw all paths on the map</label></div>
+    <p class="note" id="cmpNote"></p>
+    <div class="kpis" id="kpis"></div>
+    <div class="tablewrap"><table id="cmpTable"></table></div>
+    <p class="note foot" id="cmpFoot"></p>
+  </section>
+</main>
+
+<section class="card verdictcard" aria-label="Verdict"><h2>What the numbers say</h2><div id="verdict" class="verdict"></div></section>
+
+<details class="card theory">
+  <summary>How A* and AO* work, and how AO* is modelled</summary>
+  <div class="theory-body">
+    <p><b>A*</b> expands the node with the lowest f(n) = g(n) + h(n), where g is the distance driven so far. With an admissible h (never over-estimates) the route it returns is the shortest one.</p>
+    <p><b>AO*</b> works on an AND-OR graph. P(u→v) means “get the package from u to v”. It is solved either by driving the road u–v (an OR choice) or by picking a waypoint w and solving both P(u→w) <i>and</i> P(w→v) (an AND arc). Splitting repeats until every piece is a single road. Costs are revised bottom-up: f(n) = min over arcs [ arc cost + Σ f(children) ].</p>
+    <p><b>Heuristics.</b> H1 is the straight-line distance. H2 takes the larger of H1 and a landmark bound (three landmark junctions with exact road distances, shown as purple diamonds), so it is tighter but still never over-estimates. H3 inflates H2 by 1.6 and may return longer routes. H0 gives no guidance.</p>
+    <p><b>AO* settings.</b> Only the K most promising waypoints are generated per step, and an arc is pruned when even its optimistic estimate cannot beat the direct road. A waypoint is rejected if it would close a cycle, because AO* needs an acyclic graph.</p>
+  </div>
+</details>
+
+<script src="js/map.js"></script>
+<script src="js/heuristics.js"></script>
+<script src="js/aostar.js"></script>
+<script src="js/astar.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
